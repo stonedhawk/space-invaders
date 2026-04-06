@@ -50,8 +50,84 @@
 </head>
 <body>
     <canvas id="gameCanvas" width="800" height="600"></canvas>
-    <div id="signature">Created by Stonedhawk (Rahul)</div>
+    <div id="signature">Created by Stonedhawk (Rahul) | 'M' to mute</div>
     <script>
+        // Web Audio SFX Engine
+        const AudioContextBase = window.AudioContext || window.webkitAudioContext;
+        let audioCtx;
+        let sfxEnabled = true;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new AudioContextBase();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        const sfx = {
+            playTone: (freq, type, duration, vol=0.1) => {
+                if (!sfxEnabled || !audioCtx) return;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+                osc.start();
+                osc.stop(audioCtx.currentTime + duration);
+            },
+            shoot: () => sfx.playTone(400, 'square', 0.1, 0.05),
+            alienShoot: () => sfx.playTone(200, 'sawtooth', 0.15, 0.03),
+            laser: () => {
+                if (!sfxEnabled || !audioCtx) return;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.15);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.15);
+            },
+            explode: () => {
+                if (!sfxEnabled || !audioCtx) return;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(100, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(10, audioCtx.currentTime + 0.2);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.2);
+            },
+            pickup: () => {
+                if (!sfxEnabled || !audioCtx) return;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+                osc.frequency.setValueAtTime(800, audioCtx.currentTime + 0.05);
+                osc.frequency.setValueAtTime(1200, audioCtx.currentTime + 0.1);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.2);
+            },
+            bossHit: () => sfx.playTone(80, 'square', 0.1, 0.1)
+        };
+
         class GameEngineState {
             constructor() {
                 this.alienKills = 0;
@@ -90,9 +166,10 @@
         let gameState = 'START';
         let waveTimer = 0;
 
-        const keys = { left: false, right: false, space: false, pPressed: false };
+        const keys = { left: false, right: false, space: false, pPressed: false, mPressed: false };
 
         window.addEventListener('keydown', (e) => {
+            initAudio(); // Initialize audio on first user interaction
             if (e.code === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = true;
             if (e.code === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = true;
             if (e.code === 'Space') {
@@ -106,6 +183,12 @@
                     keys.pPressed = true;
                 }
             }
+            if (e.key === 'm' || e.key === 'M') {
+                if (!keys.mPressed) {
+                    sfxEnabled = !sfxEnabled;
+                    keys.mPressed = true;
+                }
+            }
         });
 
         window.addEventListener('keyup', (e) => {
@@ -113,6 +196,7 @@
             if (e.code === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = false;
             if (e.code === 'Space') keys.space = false;
             if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') keys.pPressed = false;
+            if (e.key === 'm' || e.key === 'M') keys.mPressed = false;
         });
 
         function handleStateTransitions() {
@@ -264,6 +348,7 @@
 
         const particles = [];
         function createExplosion(x, y, color) {
+            sfx.explode();
             for (let i = 0; i < 8; i++) {
                 particles.push({
                     x: x, y: y,
@@ -273,6 +358,7 @@
             }
         }
         function createBigExplosion(x, y, color) {
+            sfx.explode();
             for (let i = 0; i < 20; i++) {
                 particles.push({
                     x: x, y: y,
@@ -282,6 +368,7 @@
             }
         }
         function createDeathExplosion(x, y, color) {
+            sfx.explode();
             for (let i = 0; i < 40; i++) {
                 particles.push({
                     x: x, y: y,
@@ -299,7 +386,7 @@
             { type: 'laser', color: '#ffffff', weight: 2 }
         ];
 
-        let powerUpCapsules = []; // array of active falling powers
+        let powerUpCapsules = []; 
 
         function getRandomPowerUp() {
             let total = POWERUP_TYPES.reduce((acc, curr) => acc + curr.weight, 0);
@@ -432,6 +519,7 @@
 
             if (keys.space && lives > 0 && (performance.now() - player.lastFireTime > currentFireRate)) {
                 if (currentIsLaser) {
+                    sfx.laser();
                     player.bullets.push({
                         x: player.x + player.width / 2 - currentBulletWidth/2,
                         y: 0, 
@@ -444,6 +532,7 @@
                         hitAliens: new Set()
                     });
                 } else {
+                    sfx.shoot();
                     for (let i = 0; i < currentNumBullets; i++) {
                         let offset = 0;
                         if (currentNumBullets === 2) offset = i === 0 ? -12 : 12;
@@ -479,7 +568,6 @@
 
             let activeAliens = aliens.filter(a => a.active);
 
-            // Boss Logic
             if (boss.active) {
                 boss.x += boss.speed * boss.direction * dtFactor;
                 if (boss.direction === 1 && boss.x + boss.width > WIDTH - 20) boss.direction = -1;
@@ -488,6 +576,7 @@
                 boss.fireTimer += dt;
                 if (boss.fireTimer > boss.fireInterval) {
                     boss.fireTimer = 0;
+                    sfx.alienShoot();
                     for (let i = -2; i <= 2; i++) {
                         alienBullets.push({
                             x: boss.x + boss.width/2 - 2 + i * 20,
@@ -501,7 +590,6 @@
                 }
             }
 
-            // Update player bullets
             for (let i = player.bullets.length - 1; i >= 0; i--) {
                 let b = player.bullets[i];
                 if (b.isLaser) {
@@ -516,6 +604,7 @@
                             b.hitAliens.add(boss);
                             let damage = 5;
                             boss.hp -= damage;
+                            sfx.bossHit();
                             createExplosion(b.x + b.width/2, boss.y + boss.height, boss.color);
                             if (boss.hp <= 0) {
                                 boss.active = false;
@@ -567,6 +656,7 @@
                         
                         let damage = currentBulletWidth > 4 ? 30 : 15;
                         boss.hp -= damage;
+                        sfx.bossHit();
                         createExplosion(b.x, b.y, boss.color);
                         player.bullets.splice(i, 1);
                         
@@ -629,6 +719,7 @@
                     
                     engine.addPowerUp(c.type);
                     score += 50; 
+                    sfx.pickup();
                     powerUpCapsules.splice(i, 1);
                 }
             }
@@ -676,6 +767,7 @@
                 if (alienFireTimer > alienFireInterval) {
                     alienFireTimer = 0;
                     let numFighters = Math.floor(Math.random() * 3) + 1;
+                    sfx.alienShoot();
                     for (let i = 0; i < numFighters; i++) {
                         let shooter = activeAliens[Math.floor(Math.random() * activeAliens.length)];
                         alienBullets.push({
@@ -763,7 +855,6 @@
             ctx.fillRect(x + w/4 + 10, y + 3*h/4, 20, h/4);
             ctx.fillRect(x + 3*w/4 - 30, y + 3*h/4, 20, h/4);
 
-            // HB Bar
             ctx.fillStyle = '#ff0000';
             ctx.fillRect(WIDTH/2 - 200, 20, 400, 10);
             ctx.fillStyle = '#33ff33';
@@ -813,8 +904,8 @@
                 ctx.fillText('WAVE 10 = BOSS', WIDTH / 2, HEIGHT / 2 + 170);
 
                 if (Math.floor(performance.now() / 500) % 2 === 0) {
-                    ctx.fillStyle = '#fff';
-                    ctx.fillText('PRESS SPACE TO START', WIDTH / 2, HEIGHT - 80);
+                    ctx.fillStyle = '#base';
+                    ctx.fillText('PRESS SPACE TO START', WIDTH / 2, HEIGHT - 50);
                 }
                 return;
             }
@@ -827,7 +918,6 @@
             }
 
             if (ufo.active) drawUFO();
-
             if (boss.active) drawBoss();
 
             for (let c of powerUpCapsules) {
