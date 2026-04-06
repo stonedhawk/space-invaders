@@ -74,7 +74,7 @@
             }
             advanceWave() {
                 this.wave++;
-                if (this.wave === 10) {
+                if (this.wave >= 10) {
                     this.isBossWave = true;
                 }
             }
@@ -116,7 +116,7 @@
         });
 
         function handleStateTransitions() {
-            if (gameState === 'START' || gameState === 'GAMEOVER') {
+            if (gameState === 'START' || gameState === 'GAMEOVER' || gameState === 'VICTORY') {
                 resetGame();
                 gameState = 'PLAYING';
             }
@@ -158,6 +158,21 @@
             color: '#ff3333'
         };
 
+        const boss = {
+            active: false,
+            x: WIDTH / 2 - 100,
+            y: 80,
+            width: 200,
+            height: 80,
+            hp: 2000,
+            maxHp: 2000,
+            color: '#ff00ff',
+            speed: 3,
+            direction: 1,
+            fireTimer: 0,
+            fireInterval: 1000
+        };
+
         const aliens = [];
         const alienRows = 5;
         const alienCols = 8;
@@ -175,6 +190,14 @@
             alienBullets.length = 0;
             alienDirection = 1;
             
+            if (engine.isBossWave) {
+                boss.active = true;
+                boss.hp = boss.maxHp;
+                boss.x = WIDTH / 2 - 100;
+                boss.y = 80;
+                return;
+            }
+
             let baseOffsetTop = 80 + (engine.wave - 1) * 20;
             if (baseOffsetTop > 200) baseOffsetTop = 200; 
 
@@ -220,7 +243,7 @@
             
             for (let i = 0; i < 4; i++) {
                 let sx = spacing + i * (tWidth + spacing);
-                let sy = HEIGHT - 160;   // Moved up to fit HUD
+                let sy = HEIGHT - 160;   
                 let pixels = [];
                 for (let r = 0; r < shieldMap.length; r++) {
                     for (let c = 0; c < shieldMap[r].length; c++) {
@@ -303,6 +326,7 @@
             powerUpCapsules = [];
             ufo.active = false;
             ufo.timer = 0;
+            boss.active = false;
             initAliens();
             initShields();
             particles.length = 0;
@@ -316,7 +340,7 @@
         }
 
         function checkShieldCollision(bullet, bIndex, bulletArray) {
-            if (bullet.isLaser) return false; // laser pierces shields natively or burns huge holes? Let's say laser ignores shields to prevent immediate shield destruction
+            if (bullet.isLaser) return false; 
 
             for (let s of shields) {
                 let minX = s.pixels[0]?.x || 0;
@@ -330,7 +354,7 @@
                         
                         let hitPx = bullet.x + bullet.width/2;
                         let hitPy = bullet.y + bullet.height/2;
-                        let radius = bullet.width > 4 ? 15 : 10; // larger bullet = bigger bite
+                        let radius = bullet.width > 4 ? 15 : 10; 
                         
                         for (let i = s.pixels.length - 1; i >= 0; i--) {
                             let sp = s.pixels[i];
@@ -360,7 +384,7 @@
                 }
             }
 
-            if (gameState === 'START' || gameState === 'GAMEOVER' || gameState === 'PAUSED') return;
+            if (gameState === 'START' || gameState === 'GAMEOVER' || gameState === 'PAUSED' || gameState === 'VICTORY') return;
 
             if (gameState === 'WAVE') {
                 waveTimer -= dt;
@@ -383,16 +407,6 @@
                 return;
             }
 
-            // Power-ups Drops
-            while (engine.pendingDrops > 0) {
-                engine.pendingDrops--;
-                let pu = getRandomPowerUp();
-                // We'll spawn it roughly from the center or previous alien. 
-                // We can just drop it from random top for simplicity if exact alien x/y isn't available,
-                // but wait, we can spawn it precisely where alien died if we track it. 
-                // Our engine.recordAlienKill is called after collision. Let's patch standard drop behavior.
-            }
-
             if (player.invincible) {
                 player.invincibleTimer -= dt;
                 if (player.invincibleTimer <= 0) player.invincible = false;
@@ -403,7 +417,6 @@
             if (player.x < 0) player.x = 0;
             if (player.x + player.width > WIDTH) player.x = WIDTH - player.width;
 
-            // Compute player stats based on active powers
             let currentFireRate = 300;
             let currentBulletWidth = 4;
             let currentNumBullets = 1;
@@ -421,13 +434,13 @@
                 if (currentIsLaser) {
                     player.bullets.push({
                         x: player.x + player.width / 2 - currentBulletWidth/2,
-                        y: 0, // Beam goes from top of screen to player
+                        y: 0, 
                         width: currentBulletWidth,
                         height: player.y,
                         speed: 0,
                         color: '#ffffff',
                         isLaser: true,
-                        life: 150, // renders for 150ms
+                        life: 150, 
                         hitAliens: new Set()
                     });
                 } else {
@@ -450,7 +463,7 @@
             }
 
             ufo.timer += dt;
-            if (!ufo.active && ufo.timer > ufo.interval) {
+            if (!ufo.active && ufo.timer > ufo.interval && !engine.isBossWave) {
                 ufo.active = true;
                 ufo.direction = Math.random() > 0.5 ? 1 : -1;
                 ufo.x = ufo.direction === 1 ? -ufo.width : WIDTH;
@@ -466,6 +479,28 @@
 
             let activeAliens = aliens.filter(a => a.active);
 
+            // Boss Logic
+            if (boss.active) {
+                boss.x += boss.speed * boss.direction * dtFactor;
+                if (boss.direction === 1 && boss.x + boss.width > WIDTH - 20) boss.direction = -1;
+                if (boss.direction === -1 && boss.x < 20) boss.direction = 1;
+                
+                boss.fireTimer += dt;
+                if (boss.fireTimer > boss.fireInterval) {
+                    boss.fireTimer = 0;
+                    for (let i = -2; i <= 2; i++) {
+                        alienBullets.push({
+                            x: boss.x + boss.width/2 - 2 + i * 20,
+                            y: boss.y + boss.height,
+                            width: 6, height: 18,
+                            speed: 7 * dtFactor,
+                            color: '#ff8800'
+                        });
+                    }
+                    boss.fireInterval = 800 + Math.random() * 600; 
+                }
+            }
+
             // Update player bullets
             for (let i = player.bullets.length - 1; i >= 0; i--) {
                 let b = player.bullets[i];
@@ -475,9 +510,24 @@
                         player.bullets.splice(i, 1);
                         continue;
                     }
-                    // Laser collision piercing
+                    
+                    if (boss.active && !b.hitAliens.has(boss)) {
+                        if (b.x < boss.x + boss.width && b.x + b.width > boss.x) {
+                            b.hitAliens.add(boss);
+                            let damage = 5;
+                            boss.hp -= damage;
+                            createExplosion(b.x + b.width/2, boss.y + boss.height, boss.color);
+                            if (boss.hp <= 0) {
+                                boss.active = false;
+                                score += 10000;
+                                createDeathExplosion(boss.x + boss.width/2, boss.y + boss.height/2, boss.color);
+                                updateHighScore();
+                                gameState = 'VICTORY';
+                            }
+                        }
+                    }
+
                     for (let a of activeAliens) {
-                        // laser acts as a continuous rectangle
                         if (!b.hitAliens.has(a) && b.x < a.x + a.width && b.x + b.width > a.x) {
                             b.hitAliens.add(a);
                             
@@ -497,7 +547,6 @@
                         }
                     }
 
-                    // UFO laser hit
                     if (ufo.active && !b.hitAliens.has(ufo) && b.x < ufo.x + ufo.width && b.x + b.width > ufo.x) {
                         b.hitAliens.add(ufo);
                         score += 300;
@@ -513,6 +562,24 @@
                     }
                     if (checkShieldCollision(b, i, player.bullets)) continue;
 
+                    if (boss.active && b.x < boss.x + boss.width && b.x + b.width > boss.x &&
+                        b.y < boss.y + boss.height && b.y + b.height > boss.y) {
+                        
+                        let damage = currentBulletWidth > 4 ? 30 : 15;
+                        boss.hp -= damage;
+                        createExplosion(b.x, b.y, boss.color);
+                        player.bullets.splice(i, 1);
+                        
+                        if (boss.hp <= 0) {
+                            boss.active = false;
+                            score += 10000;
+                            createDeathExplosion(boss.x + boss.width/2, boss.y + boss.height/2, boss.color);
+                            updateHighScore();
+                            gameState = 'VICTORY';
+                        }
+                        continue;
+                    }
+
                     if (ufo.active && b.x < ufo.x + ufo.width && b.x + b.width > ufo.x &&
                         b.y < ufo.y + ufo.height && b.y + b.height > ufo.y) {
                         
@@ -525,7 +592,6 @@
                         continue;
                     }
 
-                    // regular bullet alien hit
                     for (let a of activeAliens) {
                         if (b.x < a.x + a.width && b.x + b.width > a.x &&
                             b.y < a.y + a.height && b.y + b.height > a.y) {
@@ -543,14 +609,13 @@
                             }
                             updateHighScore();
                             createExplosion(a.x + a.width/2, a.y + a.height/2, a.color);
-                            player.bullets.splice(i, 1); // delete the standard bullet
+                            player.bullets.splice(i, 1); 
                             break;
                         }
                     }
                 }
             }
 
-            // Power up capsules updates
             for (let i = powerUpCapsules.length - 1; i >= 0; i--) {
                 let c = powerUpCapsules[i];
                 c.y += c.speed * dtFactor;
@@ -559,71 +624,71 @@
                     continue;
                 }
 
-                // player pickup
                 if (c.x < player.x + player.width && c.x + c.width > player.x &&
                     c.y < player.y + player.height && c.y + c.height > player.y) {
                     
                     engine.addPowerUp(c.type);
-                    score += 50; // extra points for pickup
+                    score += 50; 
                     powerUpCapsules.splice(i, 1);
                 }
             }
 
-            activeAliens = aliens.filter(a => a.active);
-            if (activeAliens.length === 0) {
-                gameState = 'WAVE';
-                waveTimer = 2000;
-                ufo.active = false;
-                return;
-            }
-
-            let speedFactor = Math.max(0.1, activeAliens.length / (alienRows * alienCols));
-            let waveSpeedBonus = (engine.wave - 1) * 0.1;
-            let alienSpeedX = (0.5 + (1 - speedFactor) * 2 + waveSpeedBonus) * dtFactor;
-            
-            let hitEdge = false;
-            let hitBottom = false;
-            for (let a of activeAliens) {
-                if (a.x + alienSpeedX * alienDirection + a.width > WIDTH - 20 && alienDirection === 1) hitEdge = true;
-                if (a.x + alienSpeedX * alienDirection < 20 && alienDirection === -1) hitEdge = true;
-            }
-
-            if (hitEdge) {
-                alienDirection *= -1;
-                for (let a of aliens) {
-                    a.y += 20;
-                    if (a.y + a.height >= HEIGHT - 160) hitBottom = true; 
+            if (!engine.isBossWave) {
+                if (activeAliens.length === 0) {
+                    gameState = 'WAVE';
+                    waveTimer = 2000;
+                    ufo.active = false;
+                    return;
                 }
-            } else {
-                for (let a of aliens) {
-                    a.x += alienSpeedX * alienDirection;
-                }
-            }
 
-            if (hitBottom) {
-                lives = 0;
-                createDeathExplosion(player.x + player.width/2, player.y + player.height/2, player.color);
-                gameState = 'GAMEOVER';
-                updateHighScore();
-                return;
-            }
-
-            alienFireTimer += dt;
-            if (alienFireTimer > alienFireInterval) {
-                alienFireTimer = 0;
-                let numFighters = Math.floor(Math.random() * 3) + 1;
-                for (let i = 0; i < numFighters; i++) {
-                    let shooter = activeAliens[Math.floor(Math.random() * activeAliens.length)];
-                    alienBullets.push({
-                        x: shooter.x + shooter.width / 2 - 2,
-                        y: shooter.y + shooter.height,
-                        width: 4,
-                        height: 15,
-                        speed: (5 + engine.wave*0.2) * dtFactor,
-                        color: '#ff6666'
-                    });
+                let speedFactor = Math.max(0.1, activeAliens.length / (alienRows * alienCols));
+                let waveSpeedBonus = (engine.wave - 1) * 0.1;
+                let alienSpeedX = (0.5 + (1 - speedFactor) * 2 + waveSpeedBonus) * dtFactor;
+                
+                let hitEdge = false;
+                let hitBottom = false;
+                for (let a of activeAliens) {
+                    if (a.x + alienSpeedX * alienDirection + a.width > WIDTH - 20 && alienDirection === 1) hitEdge = true;
+                    if (a.x + alienSpeedX * alienDirection < 20 && alienDirection === -1) hitEdge = true;
                 }
-                alienFireInterval = Math.max(300, 500 + speedFactor * 2000 - engine.wave * 100);
+
+                if (hitEdge) {
+                    alienDirection *= -1;
+                    for (let a of aliens) {
+                        a.y += 20;
+                        if (a.y + a.height >= HEIGHT - 160) hitBottom = true; 
+                    }
+                } else {
+                    for (let a of aliens) {
+                        a.x += alienSpeedX * alienDirection;
+                    }
+                }
+
+                if (hitBottom) {
+                    lives = 0;
+                    createDeathExplosion(player.x + player.width/2, player.y + player.height/2, player.color);
+                    gameState = 'GAMEOVER';
+                    updateHighScore();
+                    return;
+                }
+
+                alienFireTimer += dt;
+                if (alienFireTimer > alienFireInterval) {
+                    alienFireTimer = 0;
+                    let numFighters = Math.floor(Math.random() * 3) + 1;
+                    for (let i = 0; i < numFighters; i++) {
+                        let shooter = activeAliens[Math.floor(Math.random() * activeAliens.length)];
+                        alienBullets.push({
+                            x: shooter.x + shooter.width / 2 - 2,
+                            y: shooter.y + shooter.height,
+                            width: 4,
+                            height: 15,
+                            speed: (5 + engine.wave*0.2) * dtFactor,
+                            color: '#ff6666'
+                        });
+                    }
+                    alienFireInterval = Math.max(300, 500 + speedFactor * 2000 - engine.wave * 100);
+                }
             }
 
             for (let i = alienBullets.length - 1; i >= 0; i--) {
@@ -686,6 +751,27 @@
             ctx.fillRect(x + 2*w/3 - 4, y + h/3, 4, 4);
         }
 
+        function drawBoss() {
+            ctx.fillStyle = boss.color;
+            let x = boss.x, y = boss.y, w = boss.width, h = boss.height;
+            ctx.fillRect(x + w/4, y, w/2, h/4);
+            ctx.fillRect(x + w/8, y + h/4, 3*w/4, h/4);
+            ctx.fillRect(x, y + 2*h/4, w, h/4);
+            ctx.fillRect(x + w/4, y + 3*h/4, w/2, h/4);
+
+            ctx.fillStyle = Math.floor(performance.now() / 150) % 2 === 0 ? '#ffea00' : '#ff0000';
+            ctx.fillRect(x + w/4 + 10, y + 3*h/4, 20, h/4);
+            ctx.fillRect(x + 3*w/4 - 30, y + 3*h/4, 20, h/4);
+
+            // HB Bar
+            ctx.fillStyle = '#ff0000';
+            ctx.fillRect(WIDTH/2 - 200, 20, 400, 10);
+            ctx.fillStyle = '#33ff33';
+            let hpW = (boss.hp / boss.maxHp) * 400;
+            if (hpW < 0) hpW = 0;
+            ctx.fillRect(WIDTH/2 - 200, 20, hpW, 10);
+        }
+
         function drawUFO() {
             ctx.fillStyle = ufo.color;
             if (Math.floor(performance.now() / 150) % 2 === 0) {
@@ -722,10 +808,13 @@
                 
                 ctx.fillStyle = '#ff00ff';
                 ctx.fillText('GRAB FALLING POWERS!', WIDTH / 2, HEIGHT / 2 + 130);
+                
+                ctx.fillStyle = '#00ffff';
+                ctx.fillText('WAVE 10 = BOSS', WIDTH / 2, HEIGHT / 2 + 170);
 
                 if (Math.floor(performance.now() / 500) % 2 === 0) {
                     ctx.fillStyle = '#fff';
-                    ctx.fillText('PRESS SPACE TO START', WIDTH / 2, HEIGHT - 100);
+                    ctx.fillText('PRESS SPACE TO START', WIDTH / 2, HEIGHT - 80);
                 }
                 return;
             }
@@ -737,11 +826,10 @@
                 }
             }
 
-            if (ufo.active) {
-                drawUFO();
-            }
+            if (ufo.active) drawUFO();
 
-            // Power-up capsules
+            if (boss.active) drawBoss();
+
             for (let c of powerUpCapsules) {
                 ctx.fillStyle = c.color;
                 ctx.fillRect(c.x, c.y, c.width, c.height);
@@ -762,7 +850,6 @@
                 if (b.isLaser) {
                     ctx.fillStyle = b.color;
                     ctx.fillRect(b.x, b.y, b.width, b.height);
-                    // Add beam pulsing
                     if (Math.floor(performance.now() / 50) % 2 === 0) {
                         ctx.fillStyle = 'rgba(255,255,255,0.5)';
                         ctx.fillRect(b.x - 2, b.y, b.width + 4, b.height);
@@ -792,13 +879,14 @@
                 ctx.fillRect(p.x, p.y, p.size, p.size);
             }
 
-            // HUD
             ctx.font = '16px "Press Start 2P"';
             ctx.fillStyle = '#fff';
             ctx.textAlign = 'left';
             ctx.fillText(`SCORE: ${score}`, 20, 30);
             ctx.textAlign = 'center';
-            ctx.fillText(`HI-SCORE: ${highScore}`, WIDTH / 2, 30);
+            if (!boss.active) {
+                ctx.fillText(`HI-SCORE: ${highScore}`, WIDTH / 2, 30);
+            }
             
             for (let i = 0; i < lives; i++) {
                 ctx.fillStyle = '#33ff33';
@@ -809,7 +897,6 @@
                 ctx.fillRect(lx + 8, ly - 3, 4, 3);
             }
 
-            // POWERS HUD
             ctx.font = '10px "Press Start 2P"';
             ctx.fillStyle = '#aaa';
             ctx.textAlign = 'left';
@@ -820,7 +907,6 @@
                 ctx.fillStyle = color;
                 ctx.fillRect(100 + i * 25, HEIGHT - 28, 20, 10);
                 
-                // border if last
                 if (i === engine.activePowers.length - 1) {
                     ctx.strokeStyle = '#fff';
                     ctx.strokeRect(100 + i * 25 - 1, HEIGHT - 28 - 1, 22, 12);
@@ -838,6 +924,21 @@
                     } else {
                         ctx.fillText(`WAVE ${engine.wave}`, WIDTH / 2, HEIGHT / 2);
                     }
+                }
+            }
+
+            if (gameState === 'VICTORY') {
+                ctx.font = '40px "Press Start 2P"';
+                ctx.fillStyle = '#ffea00';
+                ctx.textAlign = 'center';
+                ctx.fillText('YOU WIN!', WIDTH / 2, HEIGHT / 2 - 20);
+                ctx.font = '20px "Press Start 2P"';
+                ctx.fillText('THE GALAXY IS SAVED.', WIDTH / 2, HEIGHT / 2 + 30);
+                
+                if (Math.floor(performance.now() / 500) % 2 === 0) {
+                    ctx.font = '16px "Press Start 2P"';
+                    ctx.fillStyle = '#fff';
+                    ctx.fillText('PRESS SPACE TO RESTART', WIDTH / 2, HEIGHT / 2 + 80);
                 }
             }
 
