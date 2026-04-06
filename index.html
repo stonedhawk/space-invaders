@@ -383,7 +383,8 @@
             { type: 'bigger_bullets', color: '#00ffff', weight: 40 },
             { type: 'two_bullets', color: '#ff00ff', weight: 12 },
             { type: 'three_bullets', color: '#ff8800', weight: 6 },
-            { type: 'laser', color: '#ffffff', weight: 2 }
+            { type: 'laser', color: '#ffffff', weight: 2 },
+            { type: 'extra_life', color: '#ff3333', weight: 10 }
         ];
 
         let powerUpCapsules = []; 
@@ -717,7 +718,11 @@
                 if (c.x < player.x + player.width && c.x + c.width > player.x &&
                     c.y < player.y + player.height && c.y + c.height > player.y) {
                     
-                    engine.addPowerUp(c.type);
+                    if (c.type === 'extra_life') {
+                        if (lives < 5) lives++;
+                    } else {
+                        engine.addPowerUp(c.type);
+                    }
                     score += 50; 
                     sfx.pickup();
                     powerUpCapsules.splice(i, 1);
@@ -733,8 +738,8 @@
                 }
 
                 let speedFactor = Math.max(0.1, activeAliens.length / (alienRows * alienCols));
-                let waveSpeedBonus = (engine.wave - 1) * 0.1;
-                let alienSpeedX = (0.5 + (1 - speedFactor) * 2 + waveSpeedBonus) * dtFactor;
+                let waveSpeedBonus = (engine.wave - 1) * 0.05;
+                let alienSpeedX = Math.min(2.0, (0.5 + (1 - speedFactor) * 1.5 + waveSpeedBonus)) * dtFactor;
                 
                 let hitEdge = false;
                 let hitBottom = false;
@@ -779,7 +784,7 @@
                             color: '#ff6666'
                         });
                     }
-                    alienFireInterval = Math.max(300, 500 + speedFactor * 2000 - engine.wave * 100);
+                    alienFireInterval = Math.max(600, 800 + speedFactor * 2000 - engine.wave * 50);
                 }
             }
 
