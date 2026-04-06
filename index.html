@@ -19,6 +19,21 @@
             font-family: 'Press Start 2P', cursive;
             overflow: hidden;
         }
+        body::after {
+            content: "";
+            position: absolute;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: linear-gradient(
+                to bottom,
+                rgba(255, 255, 255, 0),
+                rgba(255, 255, 255, 0) 50%,
+                rgba(0, 0, 0, 0.15) 50%,
+                rgba(0, 0, 0, 0.15)
+            );
+            background-size: 100% 4px;
+            pointer-events: none;
+            z-index: 10;
+        }
         #gameCanvas {
             background-color: #000;
             image-rendering: pixelated;
@@ -28,6 +43,8 @@
             font-size: 11px;
             color: #444;
             font-family: sans-serif;
+            z-index: 20;
+            position: relative;
         }
     </style>
 </head>
@@ -41,7 +58,7 @@
         const HEIGHT = canvas.height;
 
         // Game State
-        let gameState = 'START'; // START, PLAYING, GAMEOVER, PAUSED, WAVE
+        let gameState = 'START';
         let waveCount = 1;
         let waveTimer = 0;
 
@@ -140,7 +157,6 @@
             alienBullets.length = 0;
             alienDirection = 1;
             
-            // Drop lower per wave, max out at some point
             let baseOffsetTop = 80 + (waveCount - 1) * 20;
             if (baseOffsetTop > 200) baseOffsetTop = 200; 
 
@@ -234,6 +250,19 @@
                 });
             }
         }
+        function createDeathExplosion(x, y, color) {
+            for (let i = 0; i < 40; i++) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: (Math.random() - 0.5) * 15,
+                    vy: (Math.random() - 0.5) * 15,
+                    life: 600,
+                    color: color,
+                    size: Math.random() * 4 + 2
+                });
+            }
+        }
 
         function resetGame() {
             score = 0;
@@ -256,7 +285,6 @@
             }
         }
 
-        // Shield Collision Logic
         function checkShieldCollision(bullet, bIndex, bulletArray) {
             for (let s of shields) {
                 let minX = s.pixels[0]?.x || 0;
@@ -292,7 +320,6 @@
         function update(dt) {
             let dtFactor = dt / (1000/60);
 
-            // Update stars (always running)
             for (let star of stars) {
                 star.y += star.speed * dtFactor;
                 if (star.y > HEIGHT) {
@@ -305,8 +332,6 @@
 
             if (gameState === 'WAVE') {
                 waveTimer -= dt;
-                
-                // Update particles so trailing explosions finish
                 for (let i = particles.length - 1; i >= 0; i--) {
                     let p = particles[i];
                     p.x += p.vx * dtFactor;
@@ -325,21 +350,16 @@
                 return;
             }
 
-            // --- PLAYING STATE ---
-
-            // Player Invincibility
             if (player.invincible) {
                 player.invincibleTimer -= dt;
                 if (player.invincibleTimer <= 0) player.invincible = false;
             }
 
-            // Player movement
             if (keys.left) player.x -= player.speed * dtFactor;
             if (keys.right) player.x += player.speed * dtFactor;
             if (player.x < 0) player.x = 0;
             if (player.x + player.width > WIDTH) player.x = WIDTH - player.width;
 
-            // Player shooting
             if (keys.space && lives > 0 && (performance.now() - player.lastFireTime > player.fireRate)) {
                 player.bullets.push({
                     x: player.x + player.width / 2 - 2,
@@ -352,7 +372,6 @@
                 player.lastFireTime = performance.now();
             }
 
-            // UFO Logic
             ufo.timer += dt;
             if (!ufo.active && ufo.timer > ufo.interval) {
                 ufo.active = true;
@@ -368,17 +387,15 @@
                 }
             }
 
-            // Update player bullets
             for (let i = player.bullets.length - 1; i >= 0; i--) {
                 let b = player.bullets[i];
                 b.y -= b.speed;
-                if (b.y < 0) {
+                if (b.y < -b.height*2) { // Allow trail to pass off screen
                     player.bullets.splice(i, 1);
                     continue;
                 }
                 if (checkShieldCollision(b, i, player.bullets)) continue;
 
-                // UFO Collision
                 if (ufo.active && b.x < ufo.x + ufo.width && b.x + b.width > ufo.x &&
                     b.y < ufo.y + ufo.height && b.y + b.height > ufo.y) {
                     
@@ -392,7 +409,6 @@
                 }
             }
 
-            // Update aliens
             let activeAliens = aliens.filter(a => a.active);
             if (activeAliens.length === 0) {
                 gameState = 'WAVE';
@@ -402,7 +418,6 @@
             }
 
             let speedFactor = Math.max(0.1, activeAliens.length / (alienRows * alienCols));
-            // Add a wave multiplier to speed
             let waveSpeedBonus = (waveCount - 1) * 0.1;
             let alienSpeedX = (0.5 + (1 - speedFactor) * 2 + waveSpeedBonus) * dtFactor;
             
@@ -417,7 +432,7 @@
                 alienDirection *= -1;
                 for (let a of aliens) {
                     a.y += 20;
-                    if (a.y + a.height >= HEIGHT - 140) hitBottom = true; // Reach shields area
+                    if (a.y + a.height >= HEIGHT - 140) hitBottom = true; 
                 }
             } else {
                 for (let a of aliens) {
@@ -427,12 +442,12 @@
 
             if (hitBottom) {
                 lives = 0;
+                createDeathExplosion(player.x + player.width/2, player.y + player.height/2, player.color);
                 gameState = 'GAMEOVER';
                 updateHighScore();
                 return;
             }
 
-            // Alien shooting
             alienFireTimer += dt;
             if (alienFireTimer > alienFireInterval) {
                 alienFireTimer = 0;
@@ -451,11 +466,10 @@
                 alienFireInterval = Math.max(300, 500 + speedFactor * 2000 - waveCount * 100);
             }
 
-            // Update alien bullets
             for (let i = alienBullets.length - 1; i >= 0; i--) {
                 let b = alienBullets[i];
                 b.y += b.speed;
-                if (b.y > HEIGHT) {
+                if (b.y > HEIGHT + b.height*2) {
                     alienBullets.splice(i, 1);
                     continue;
                 }
@@ -468,12 +482,13 @@
                     
                     lives--;
                     alienBullets.splice(i, 1);
-                    createBigExplosion(player.x + player.width/2, player.y + player.height/2, player.color);
                     
                     if (lives > 0) {
+                        createBigExplosion(player.x + player.width/2, player.y + player.height/2, player.color);
                         player.invincible = true;
                         player.invincibleTimer = 1500;
                     } else {
+                        createDeathExplosion(player.x + player.width/2, player.y + player.height/2, player.color);
                         gameState = 'GAMEOVER';
                         updateHighScore();
                     }
@@ -481,7 +496,6 @@
                 }
             }
 
-            // Collision (Player Bullets vs Aliens)
             for (let i = player.bullets.length - 1; i >= 0; i--) {
                 let b = player.bullets[i];
                 let hit = false;
@@ -499,7 +513,6 @@
                 }
             }
 
-            // Particles update
             for (let i = particles.length - 1; i >= 0; i--) {
                 let p = particles[i];
                 p.x += p.vx * dtFactor;
@@ -534,7 +547,7 @@
         function drawUFO() {
             ctx.fillStyle = ufo.color;
             if (Math.floor(performance.now() / 150) % 2 === 0) {
-                ctx.fillStyle = '#ff6666'; // Pulsing glow
+                ctx.fillStyle = '#ff6666'; 
             }
             let x = ufo.x, y = ufo.y, w = ufo.width, h = ufo.height;
             ctx.fillRect(x + w/4, y, w/2, h/3);
@@ -582,12 +595,10 @@
                 }
             }
 
-            // Draw UFO
             if (ufo.active) {
                 drawUFO();
             }
 
-            // Draw player
             if (lives > 0 && (!player.invincible || Math.floor(performance.now() / 150) % 2 === 0)) {
                 ctx.fillStyle = player.color;
                 ctx.fillRect(player.x, player.y + 10, player.width, player.height - 10);
@@ -595,28 +606,31 @@
                 ctx.fillRect(player.x + 13, player.y - 5, 4, 5);
             }
 
-            // Draw Bullets
+            // Draw Bullets with tails
             for (let b of player.bullets) {
-                ctx.fillStyle = b.color;
-                ctx.fillRect(b.x, b.y, b.width, b.height);
+                let grad = ctx.createLinearGradient(b.x, b.y, b.x, b.y + b.height * 2);
+                grad.addColorStop(0, '#33ff33');
+                grad.addColorStop(1, 'rgba(51, 255, 51, 0)');
+                ctx.fillStyle = grad;
+                ctx.fillRect(b.x, b.y, b.width, b.height * 2);
             }
             for (let b of alienBullets) {
-                ctx.fillStyle = b.color;
-                ctx.fillRect(b.x, b.y, b.width, b.height);
+                let grad = ctx.createLinearGradient(b.x, b.y + b.height, b.x, b.y - b.height);
+                grad.addColorStop(0, '#ff6666');
+                grad.addColorStop(1, 'rgba(255, 102, 102, 0)');
+                ctx.fillStyle = grad;
+                ctx.fillRect(b.x, b.y - b.height, b.width, b.height * 2);
             }
 
-            // Draw Aliens
             for (let a of aliens) {
                 if (a.active) drawAlien(a);
             }
 
-            // Draw Particles
             for (let p of particles) {
                 ctx.fillStyle = p.color;
                 ctx.fillRect(p.x, p.y, p.size, p.size);
             }
 
-            // Draw HUD
             ctx.font = '16px "Press Start 2P"';
             ctx.fillStyle = '#fff';
             ctx.textAlign = 'left';
@@ -634,10 +648,12 @@
             }
 
             if (gameState === 'WAVE') {
-                ctx.font = '40px "Press Start 2P"';
-                ctx.fillStyle = '#fff';
-                ctx.textAlign = 'center';
-                ctx.fillText(`WAVE ${waveCount}`, WIDTH / 2, HEIGHT / 2);
+                if (Math.floor(performance.now() / 150) % 2 === 0) {
+                    ctx.font = '40px "Press Start 2P"';
+                    ctx.fillStyle = '#fff';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(`WAVE ${waveCount}`, WIDTH / 2, HEIGHT / 2);
+                }
             }
 
             if (gameState === 'GAMEOVER') {
