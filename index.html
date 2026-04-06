@@ -52,17 +52,44 @@
     <canvas id="gameCanvas" width="800" height="600"></canvas>
     <div id="signature">Created by Stonedhawk (Rahul)</div>
     <script>
+        class GameEngineState {
+            constructor() {
+                this.alienKills = 0;
+                this.pendingDrops = 0;
+                this.activePowers = [];
+                this.wave = 1;
+                this.isBossWave = false;
+            }
+            recordAlienKill() {
+                this.alienKills++;
+                if (this.alienKills % 8 === 0) {
+                    this.pendingDrops++;
+                }
+            }
+            addPowerUp(power) {
+                this.activePowers.push(power);
+                if (this.activePowers.length > 3) {
+                    this.activePowers.shift(); 
+                }
+            }
+            advanceWave() {
+                this.wave++;
+                if (this.wave === 10) {
+                    this.isBossWave = true;
+                }
+            }
+        }
+
+        const engine = new GameEngineState();
+
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const WIDTH = canvas.width;
         const HEIGHT = canvas.height;
 
-        // Game State
         let gameState = 'START';
-        let waveCount = 1;
         let waveTimer = 0;
 
-        // Input
         const keys = { left: false, right: false, space: false, pPressed: false };
 
         window.addEventListener('keydown', (e) => {
@@ -89,43 +116,35 @@
         });
 
         function handleStateTransitions() {
-            if (gameState === 'START') {
-                resetGame();
-                gameState = 'PLAYING';
-            } else if (gameState === 'GAMEOVER') {
+            if (gameState === 'START' || gameState === 'GAMEOVER') {
                 resetGame();
                 gameState = 'PLAYING';
             }
         }
 
-        // Constants & State
         let score = 0;
         let highScore = parseInt(localStorage.getItem('spaceInvadersHighScore')) || 0;
         let lives = 3;
         let lastTime = 0;
 
-        // Stars
         const stars = [];
         for (let i = 0; i < 100; i++) {
             stars.push({ x: Math.random() * WIDTH, y: Math.random() * HEIGHT, speed: Math.random() * 0.5 + 0.1, size: Math.random() * 2 + 1 });
         }
 
-        // Player
         const player = {
             x: WIDTH / 2 - 15,
-            y: HEIGHT - 40,
+            y: HEIGHT - 60,
             width: 30,
             height: 20,
             speed: 5,
             color: '#33ff33',
             bullets: [],
             lastFireTime: 0,
-            fireRate: 300,
             invincible: false,
             invincibleTimer: 0
         };
 
-        // Mystery UFO
         const ufo = {
             active: false,
             x: 0,
@@ -139,7 +158,6 @@
             color: '#ff3333'
         };
 
-        // Aliens
         const aliens = [];
         const alienRows = 5;
         const alienCols = 8;
@@ -157,7 +175,7 @@
             alienBullets.length = 0;
             alienDirection = 1;
             
-            let baseOffsetTop = 80 + (waveCount - 1) * 20;
+            let baseOffsetTop = 80 + (engine.wave - 1) * 20;
             if (baseOffsetTop > 200) baseOffsetTop = 200; 
 
             const alienOffsetLeft = 180;
@@ -181,7 +199,6 @@
             }
         }
 
-        // Shields
         const shields = [];
         function initShields() {
             shields.length = 0;
@@ -203,7 +220,7 @@
             
             for (let i = 0; i < 4; i++) {
                 let sx = spacing + i * (tWidth + spacing);
-                let sy = HEIGHT - 140;
+                let sy = HEIGHT - 160;   // Moved up to fit HUD
                 let pixels = [];
                 for (let r = 0; r < shieldMap.length; r++) {
                     for (let c = 0; c < shieldMap[r].length; c++) {
@@ -222,55 +239,68 @@
             }
         }
 
-        // Particles
         const particles = [];
         function createExplosion(x, y, color) {
             for (let i = 0; i < 8; i++) {
                 particles.push({
-                    x: x,
-                    y: y,
-                    vx: (Math.random() - 0.5) * 6,
-                    vy: (Math.random() - 0.5) * 6,
-                    life: 200,
-                    color: color,
-                    size: 4
+                    x: x, y: y,
+                    vx: (Math.random() - 0.5) * 6, vy: (Math.random() - 0.5) * 6,
+                    life: 200, color: color, size: 4
                 });
             }
         }
         function createBigExplosion(x, y, color) {
             for (let i = 0; i < 20; i++) {
                 particles.push({
-                    x: x,
-                    y: y,
-                    vx: (Math.random() - 0.5) * 10,
-                    vy: (Math.random() - 0.5) * 10,
-                    life: 400,
-                    color: color,
-                    size: 5
+                    x: x, y: y,
+                    vx: (Math.random() - 0.5) * 10, vy: (Math.random() - 0.5) * 10,
+                    life: 400, color: color, size: 5
                 });
             }
         }
         function createDeathExplosion(x, y, color) {
             for (let i = 0; i < 40; i++) {
                 particles.push({
-                    x: x,
-                    y: y,
-                    vx: (Math.random() - 0.5) * 15,
-                    vy: (Math.random() - 0.5) * 15,
-                    life: 600,
-                    color: color,
-                    size: Math.random() * 4 + 2
+                    x: x, y: y,
+                    vx: (Math.random() - 0.5) * 15, vy: (Math.random() - 0.5) * 15,
+                    life: 600, color: color, size: Math.random() * 4 + 2
                 });
             }
+        }
+
+        const POWERUP_TYPES = [
+            { type: 'faster_shooting', color: '#ffcc00', weight: 40 },
+            { type: 'bigger_bullets', color: '#00ffff', weight: 40 },
+            { type: 'two_bullets', color: '#ff00ff', weight: 12 },
+            { type: 'three_bullets', color: '#ff8800', weight: 6 },
+            { type: 'laser', color: '#ffffff', weight: 2 }
+        ];
+
+        let powerUpCapsules = []; // array of active falling powers
+
+        function getRandomPowerUp() {
+            let total = POWERUP_TYPES.reduce((acc, curr) => acc + curr.weight, 0);
+            let r = Math.random() * total;
+            let sum = 0;
+            for (let p of POWERUP_TYPES) {
+                sum += p.weight;
+                if (r <= sum) return p;
+            }
+            return POWERUP_TYPES[0];
         }
 
         function resetGame() {
             score = 0;
             lives = 3;
-            waveCount = 1;
+            engine.wave = 1;
+            engine.isBossWave = false;
+            engine.alienKills = 0;
+            engine.pendingDrops = 0;
+            engine.activePowers = [];
             player.x = WIDTH / 2 - 15;
             player.bullets = [];
             player.invincible = false;
+            powerUpCapsules = [];
             ufo.active = false;
             ufo.timer = 0;
             initAliens();
@@ -286,6 +316,8 @@
         }
 
         function checkShieldCollision(bullet, bIndex, bulletArray) {
+            if (bullet.isLaser) return false; // laser pierces shields natively or burns huge holes? Let's say laser ignores shields to prevent immediate shield destruction
+
             for (let s of shields) {
                 let minX = s.pixels[0]?.x || 0;
                 let maxX = minX + 75;
@@ -298,7 +330,7 @@
                         
                         let hitPx = bullet.x + bullet.width/2;
                         let hitPy = bullet.y + bullet.height/2;
-                        let radius = 10;
+                        let radius = bullet.width > 4 ? 15 : 10; // larger bullet = bigger bite
                         
                         for (let i = s.pixels.length - 1; i >= 0; i--) {
                             let sp = s.pixels[i];
@@ -341,13 +373,24 @@
                 }
 
                 if (waveTimer <= 0) {
-                    waveCount++;
+                    engine.advanceWave();
                     player.bullets.length = 0;
+                    powerUpCapsules.length = 0;
                     initAliens();
                     initShields();
                     gameState = 'PLAYING';
                 }
                 return;
+            }
+
+            // Power-ups Drops
+            while (engine.pendingDrops > 0) {
+                engine.pendingDrops--;
+                let pu = getRandomPowerUp();
+                // We'll spawn it roughly from the center or previous alien. 
+                // We can just drop it from random top for simplicity if exact alien x/y isn't available,
+                // but wait, we can spawn it precisely where alien died if we track it. 
+                // Our engine.recordAlienKill is called after collision. Let's patch standard drop behavior.
             }
 
             if (player.invincible) {
@@ -360,15 +403,49 @@
             if (player.x < 0) player.x = 0;
             if (player.x + player.width > WIDTH) player.x = WIDTH - player.width;
 
-            if (keys.space && lives > 0 && (performance.now() - player.lastFireTime > player.fireRate)) {
-                player.bullets.push({
-                    x: player.x + player.width / 2 - 2,
-                    y: player.y,
-                    width: 4,
-                    height: 15,
-                    speed: 10 * dtFactor,
-                    color: '#33ff33'
-                });
+            // Compute player stats based on active powers
+            let currentFireRate = 300;
+            let currentBulletWidth = 4;
+            let currentNumBullets = 1;
+            let currentIsLaser = false;
+
+            for (let p of engine.activePowers) {
+                if (p === 'faster_shooting') currentFireRate = Math.max(50, currentFireRate - 120);
+                if (p === 'bigger_bullets') currentBulletWidth += 6;
+                if (p === 'two_bullets') currentNumBullets = Math.max(currentNumBullets, 2);
+                if (p === 'three_bullets') currentNumBullets = 3;
+                if (p === 'laser') currentIsLaser = true;
+            }
+
+            if (keys.space && lives > 0 && (performance.now() - player.lastFireTime > currentFireRate)) {
+                if (currentIsLaser) {
+                    player.bullets.push({
+                        x: player.x + player.width / 2 - currentBulletWidth/2,
+                        y: 0, // Beam goes from top of screen to player
+                        width: currentBulletWidth,
+                        height: player.y,
+                        speed: 0,
+                        color: '#ffffff',
+                        isLaser: true,
+                        life: 150, // renders for 150ms
+                        hitAliens: new Set()
+                    });
+                } else {
+                    for (let i = 0; i < currentNumBullets; i++) {
+                        let offset = 0;
+                        if (currentNumBullets === 2) offset = i === 0 ? -12 : 12;
+                        if (currentNumBullets === 3) offset = i === 0 ? -16 : (i === 1 ? 0 : 16);
+                        
+                        player.bullets.push({
+                            x: player.x + player.width / 2 - currentBulletWidth/2 + offset,
+                            y: player.y,
+                            width: currentBulletWidth,
+                            height: 15,
+                            speed: 10 * dtFactor,
+                            color: '#33ff33'
+                        });
+                    }
+                }
                 player.lastFireTime = performance.now();
             }
 
@@ -387,29 +464,112 @@
                 }
             }
 
+            let activeAliens = aliens.filter(a => a.active);
+
+            // Update player bullets
             for (let i = player.bullets.length - 1; i >= 0; i--) {
                 let b = player.bullets[i];
-                b.y -= b.speed;
-                if (b.y < -b.height*2) { // Allow trail to pass off screen
-                    player.bullets.splice(i, 1);
-                    continue;
-                }
-                if (checkShieldCollision(b, i, player.bullets)) continue;
+                if (b.isLaser) {
+                    b.life -= dt;
+                    if (b.life <= 0) {
+                        player.bullets.splice(i, 1);
+                        continue;
+                    }
+                    // Laser collision piercing
+                    for (let a of activeAliens) {
+                        // laser acts as a continuous rectangle
+                        if (!b.hitAliens.has(a) && b.x < a.x + a.width && b.x + b.width > a.x) {
+                            b.hitAliens.add(a);
+                            
+                            a.active = false;
+                            score += a.points;
+                            engine.recordAlienKill();
+                            if (engine.pendingDrops > 0) {
+                                engine.pendingDrops--;
+                                let pu = getRandomPowerUp();
+                                powerUpCapsules.push({
+                                    x: a.x + a.width/2 - 10, y: a.y + a.height/2,
+                                    width: 20, height: 10, type: pu.type, color: pu.color, speed: 2
+                                });
+                            }
+                            updateHighScore();
+                            createExplosion(a.x + a.width/2, a.y + a.height/2, a.color);
+                        }
+                    }
 
-                if (ufo.active && b.x < ufo.x + ufo.width && b.x + b.width > ufo.x &&
-                    b.y < ufo.y + ufo.height && b.y + b.height > ufo.y) {
-                    
-                    let points = [50, 100, 150, 300][Math.floor(Math.random() * 4)];
-                    score += points;
-                    updateHighScore();
-                    ufo.active = false;
-                    createBigExplosion(ufo.x + ufo.width/2, ufo.y + ufo.height/2, ufo.color);
-                    player.bullets.splice(i, 1);
-                    continue;
+                    // UFO laser hit
+                    if (ufo.active && !b.hitAliens.has(ufo) && b.x < ufo.x + ufo.width && b.x + b.width > ufo.x) {
+                        b.hitAliens.add(ufo);
+                        score += 300;
+                        updateHighScore();
+                        ufo.active = false;
+                        createBigExplosion(ufo.x + ufo.width/2, ufo.y + ufo.height/2, ufo.color);
+                    }
+                } else {
+                    b.y -= b.speed;
+                    if (b.y < -b.height*2) { 
+                        player.bullets.splice(i, 1);
+                        continue;
+                    }
+                    if (checkShieldCollision(b, i, player.bullets)) continue;
+
+                    if (ufo.active && b.x < ufo.x + ufo.width && b.x + b.width > ufo.x &&
+                        b.y < ufo.y + ufo.height && b.y + b.height > ufo.y) {
+                        
+                        let points = [50, 100, 150, 300][Math.floor(Math.random() * 4)];
+                        score += points;
+                        updateHighScore();
+                        ufo.active = false;
+                        createBigExplosion(ufo.x + ufo.width/2, ufo.y + ufo.height/2, ufo.color);
+                        player.bullets.splice(i, 1);
+                        continue;
+                    }
+
+                    // regular bullet alien hit
+                    for (let a of activeAliens) {
+                        if (b.x < a.x + a.width && b.x + b.width > a.x &&
+                            b.y < a.y + a.height && b.y + b.height > a.y) {
+                            
+                            a.active = false;
+                            score += a.points;
+                            engine.recordAlienKill();
+                            if (engine.pendingDrops > 0) {
+                                engine.pendingDrops--;
+                                let pu = getRandomPowerUp();
+                                powerUpCapsules.push({
+                                    x: a.x + a.width/2 - 10, y: a.y + a.height/2,
+                                    width: 20, height: 10, type: pu.type, color: pu.color, speed: 2
+                                });
+                            }
+                            updateHighScore();
+                            createExplosion(a.x + a.width/2, a.y + a.height/2, a.color);
+                            player.bullets.splice(i, 1); // delete the standard bullet
+                            break;
+                        }
+                    }
                 }
             }
 
-            let activeAliens = aliens.filter(a => a.active);
+            // Power up capsules updates
+            for (let i = powerUpCapsules.length - 1; i >= 0; i--) {
+                let c = powerUpCapsules[i];
+                c.y += c.speed * dtFactor;
+                if (c.y > HEIGHT) {
+                    powerUpCapsules.splice(i, 1);
+                    continue;
+                }
+
+                // player pickup
+                if (c.x < player.x + player.width && c.x + c.width > player.x &&
+                    c.y < player.y + player.height && c.y + c.height > player.y) {
+                    
+                    engine.addPowerUp(c.type);
+                    score += 50; // extra points for pickup
+                    powerUpCapsules.splice(i, 1);
+                }
+            }
+
+            activeAliens = aliens.filter(a => a.active);
             if (activeAliens.length === 0) {
                 gameState = 'WAVE';
                 waveTimer = 2000;
@@ -418,7 +578,7 @@
             }
 
             let speedFactor = Math.max(0.1, activeAliens.length / (alienRows * alienCols));
-            let waveSpeedBonus = (waveCount - 1) * 0.1;
+            let waveSpeedBonus = (engine.wave - 1) * 0.1;
             let alienSpeedX = (0.5 + (1 - speedFactor) * 2 + waveSpeedBonus) * dtFactor;
             
             let hitEdge = false;
@@ -432,7 +592,7 @@
                 alienDirection *= -1;
                 for (let a of aliens) {
                     a.y += 20;
-                    if (a.y + a.height >= HEIGHT - 140) hitBottom = true; 
+                    if (a.y + a.height >= HEIGHT - 160) hitBottom = true; 
                 }
             } else {
                 for (let a of aliens) {
@@ -459,11 +619,11 @@
                         y: shooter.y + shooter.height,
                         width: 4,
                         height: 15,
-                        speed: (5 + waveCount*0.2) * dtFactor,
+                        speed: (5 + engine.wave*0.2) * dtFactor,
                         color: '#ff6666'
                     });
                 }
-                alienFireInterval = Math.max(300, 500 + speedFactor * 2000 - waveCount * 100);
+                alienFireInterval = Math.max(300, 500 + speedFactor * 2000 - engine.wave * 100);
             }
 
             for (let i = alienBullets.length - 1; i >= 0; i--) {
@@ -496,23 +656,6 @@
                 }
             }
 
-            for (let i = player.bullets.length - 1; i >= 0; i--) {
-                let b = player.bullets[i];
-                let hit = false;
-                for (let a of activeAliens) {
-                    if (b.x < a.x + a.width && b.x + b.width > a.x &&
-                        b.y < a.y + a.height && b.y + b.height > a.y) {
-                        
-                        a.active = false;
-                        score += a.points;
-                        updateHighScore();
-                        createExplosion(a.x + a.width/2, a.y + a.height/2, a.color);
-                        player.bullets.splice(i, 1);
-                        break;
-                    }
-                }
-            }
-
             for (let i = particles.length - 1; i >= 0; i--) {
                 let p = particles[i];
                 p.x += p.vx * dtFactor;
@@ -538,7 +681,6 @@
                 ctx.fillRect(x + w/6, y + h/3, 2*w/3, h/3);
                 ctx.fillRect(x, y + 2*h/3, w, h/3);
             }
-            
             ctx.fillStyle = '#000';
             ctx.fillRect(x + w/3, y + h/3, 4, 4);
             ctx.fillRect(x + 2*w/3 - 4, y + h/3, 4, 4);
@@ -577,8 +719,9 @@
                 ctx.fillText('MEDIUM ALIEN = 20 PTS', WIDTH / 2, HEIGHT / 2 + 40);
                 ctx.fillStyle = '#33ff99';
                 ctx.fillText('LARGE ALIEN = 10 PTS', WIDTH / 2, HEIGHT / 2 + 80);
-                ctx.fillStyle = '#ff3333';
-                ctx.fillText('MYSTERY UFO = ???', WIDTH / 2, HEIGHT / 2 + 120);
+                
+                ctx.fillStyle = '#ff00ff';
+                ctx.fillText('GRAB FALLING POWERS!', WIDTH / 2, HEIGHT / 2 + 130);
 
                 if (Math.floor(performance.now() / 500) % 2 === 0) {
                     ctx.fillStyle = '#fff';
@@ -587,7 +730,6 @@
                 return;
             }
 
-            // Draw Shields
             ctx.fillStyle = '#33ff33';
             for (let s of shields) {
                 for (let p of s.pixels) {
@@ -599,6 +741,16 @@
                 drawUFO();
             }
 
+            // Power-up capsules
+            for (let c of powerUpCapsules) {
+                ctx.fillStyle = c.color;
+                ctx.fillRect(c.x, c.y, c.width, c.height);
+                ctx.fillStyle = '#000';
+                ctx.font = '8px "Press Start 2P"';
+                ctx.textAlign = 'center';
+                ctx.fillText('P', c.x + c.width/2, c.y + 8);
+            }
+
             if (lives > 0 && (!player.invincible || Math.floor(performance.now() / 150) % 2 === 0)) {
                 ctx.fillStyle = player.color;
                 ctx.fillRect(player.x, player.y + 10, player.width, player.height - 10);
@@ -606,13 +758,22 @@
                 ctx.fillRect(player.x + 13, player.y - 5, 4, 5);
             }
 
-            // Draw Bullets with tails
             for (let b of player.bullets) {
-                let grad = ctx.createLinearGradient(b.x, b.y, b.x, b.y + b.height * 2);
-                grad.addColorStop(0, '#33ff33');
-                grad.addColorStop(1, 'rgba(51, 255, 51, 0)');
-                ctx.fillStyle = grad;
-                ctx.fillRect(b.x, b.y, b.width, b.height * 2);
+                if (b.isLaser) {
+                    ctx.fillStyle = b.color;
+                    ctx.fillRect(b.x, b.y, b.width, b.height);
+                    // Add beam pulsing
+                    if (Math.floor(performance.now() / 50) % 2 === 0) {
+                        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+                        ctx.fillRect(b.x - 2, b.y, b.width + 4, b.height);
+                    }
+                } else {
+                    let grad = ctx.createLinearGradient(b.x, b.y, b.x, b.y + b.height * 2);
+                    grad.addColorStop(0, '#33ff33');
+                    grad.addColorStop(1, 'rgba(51, 255, 51, 0)');
+                    ctx.fillStyle = grad;
+                    ctx.fillRect(b.x, b.y, b.width, b.height * 2);
+                }
             }
             for (let b of alienBullets) {
                 let grad = ctx.createLinearGradient(b.x, b.y + b.height, b.x, b.y - b.height);
@@ -631,20 +792,39 @@
                 ctx.fillRect(p.x, p.y, p.size, p.size);
             }
 
+            // HUD
             ctx.font = '16px "Press Start 2P"';
             ctx.fillStyle = '#fff';
             ctx.textAlign = 'left';
-            ctx.fillText(`SCORE: ${score}`, 20, 40);
+            ctx.fillText(`SCORE: ${score}`, 20, 30);
             ctx.textAlign = 'center';
-            ctx.fillText(`HI-SCORE: ${highScore}`, WIDTH / 2, 40);
+            ctx.fillText(`HI-SCORE: ${highScore}`, WIDTH / 2, 30);
             
             for (let i = 0; i < lives; i++) {
                 ctx.fillStyle = '#33ff33';
-                const lx = WIDTH - 50 - (i * 35);
-                const ly = 25;
+                const lx = WIDTH - 40 - (i * 35);
+                const ly = 15;
                 ctx.fillRect(lx, ly + 5, 20, 10);
                 ctx.fillRect(lx + 6, ly, 8, 5);
                 ctx.fillRect(lx + 8, ly - 3, 4, 3);
+            }
+
+            // POWERS HUD
+            ctx.font = '10px "Press Start 2P"';
+            ctx.fillStyle = '#aaa';
+            ctx.textAlign = 'left';
+            ctx.fillText(`POWERS:`, 20, HEIGHT - 20);
+            for (let i = 0; i < engine.activePowers.length; i++) {
+                let type = engine.activePowers[i];
+                let color = POWERUP_TYPES.find(p => p.type === type)?.color || '#fff';
+                ctx.fillStyle = color;
+                ctx.fillRect(100 + i * 25, HEIGHT - 28, 20, 10);
+                
+                // border if last
+                if (i === engine.activePowers.length - 1) {
+                    ctx.strokeStyle = '#fff';
+                    ctx.strokeRect(100 + i * 25 - 1, HEIGHT - 28 - 1, 22, 12);
+                }
             }
 
             if (gameState === 'WAVE') {
@@ -652,7 +832,12 @@
                     ctx.font = '40px "Press Start 2P"';
                     ctx.fillStyle = '#fff';
                     ctx.textAlign = 'center';
-                    ctx.fillText(`WAVE ${waveCount}`, WIDTH / 2, HEIGHT / 2);
+                    if (engine.isBossWave) {
+                        ctx.fillStyle = '#ff00ff';
+                        ctx.fillText(`WARNING: BOSS`, WIDTH / 2, HEIGHT / 2);
+                    } else {
+                        ctx.fillText(`WAVE ${engine.wave}`, WIDTH / 2, HEIGHT / 2);
+                    }
                 }
             }
 
