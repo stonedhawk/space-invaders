@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Space Invaders</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            color: #fff;
+            font-family: 'Press Start 2P', cursive;
+            overflow: hidden;
+        }
+        #gameCanvas {
+            background-color: #000;
+            image-rendering: pixelated;
+        }
+        #signature {
+            margin-top: 10px;
+            font-size: 11px;
+            color: #444;
+            font-family: sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <div id="signature">Created by Stonedhawk (Rahul)</div>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const WIDTH = canvas.width;
+        const HEIGHT = canvas.height;
+
+        // Input
+        const keys = { left: false, right: false, space: false };
+
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = true;
+            if (e.code === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = true;
+            if (e.code === 'Space') keys.space = true;
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (e.code === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = false;
+            if (e.code === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = false;
+            if (e.code === 'Space') keys.space = false;
+        });
+
+        // Stars
+        const stars = [];
+        for (let i = 0; i < 100; i++) {
+            stars.push({
+                x: Math.random() * WIDTH,
+                y: Math.random() * HEIGHT,
+                speed: Math.random() * 0.5 + 0.1,
+                size: Math.random() * 2 + 1
+            });
+        }
+
+        // Player
+        const player = {
+            x: WIDTH / 2 - 15,
+            y: HEIGHT - 40,
+            width: 30,
+            height: 20,
+            speed: 5,
+            color: '#33ff33'
+        };
+
+        // HUD Placeholders
+        let score = 0;
+        let highScore = parseInt(localStorage.getItem('spaceInvadersHighScore')) || 0;
+        let lives = 3;
+
+        function update() {
+            // Player movement
+            if (keys.left) player.x -= player.speed;
+            if (keys.right) player.x += player.speed;
+
+            // Clamp player
+            if (player.x < 0) player.x = 0;
+            if (player.x + player.width > WIDTH) player.x = WIDTH - player.width;
+
+            // Update stars
+            for (let star of stars) {
+                star.y += star.speed;
+                if (star.y > HEIGHT) {
+                    star.y = 0;
+                    star.x = Math.random() * WIDTH;
+                }
+            }
+        }
+
+        function draw() {
+            // Clear canvas
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+            // Draw stars
+            ctx.fillStyle = '#fff';
+            for (let star of stars) {
+                ctx.fillRect(star.x, star.y, star.size, star.size);
+            }
+
+            // Draw player (Classic ship shape)
+            ctx.fillStyle = player.color;
+            ctx.fillRect(player.x, player.y + 10, player.width, player.height - 10);
+            ctx.fillRect(player.x + 10, player.y, 10, 10);
+            ctx.fillRect(player.x + 13, player.y - 5, 4, 5);
+
+            // Draw HUD
+            ctx.font = '16px "Press Start 2P"';
+            ctx.fillStyle = '#fff';
+            
+            // Score
+            ctx.textAlign = 'left';
+            ctx.fillText(`SCORE: ${score}`, 20, 40);
+            
+            // High Score
+            ctx.textAlign = 'center';
+            ctx.fillText(`HI-SCORE: ${highScore}`, WIDTH / 2, 40);
+            
+            // Lives
+            // Draw small ships for lives
+            for (let i = 0; i < lives; i++) {
+                ctx.fillStyle = '#33ff33';
+                const lx = WIDTH - 50 - (i * 35);
+                const ly = 25;
+                ctx.fillRect(lx, ly + 5, 20, 10);
+                ctx.fillRect(lx + 6, ly, 8, 5);
+                ctx.fillRect(lx + 8, ly - 3, 4, 3);
+            }
+        }
+
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Wait for font to load before drawing to ensure correct HUD layout
+        document.fonts.ready.then(() => {
+            gameLoop();
+        });
+
+    </script>
+</body>
+</html>
