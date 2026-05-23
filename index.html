@@ -3,55 +3,506 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Space Invaders</title>
-    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <title>Space Invaders - Premium Retro Arcade</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --neon-green: #33ff33;
+            --neon-blue: #00ffff;
+            --neon-pink: #ff00ff;
+            --neon-red: #ff3333;
+            --neon-orange: #ff8800;
+            --neon-yellow: #ffcc00;
+            --cabinet-bg: #12121a;
+            --cabinet-border: #222233;
+            --glow-green: rgba(51, 255, 51, 0.45);
+            --glow-pink: rgba(255, 0, 255, 0.45);
+            --glow-blue: rgba(0, 255, 255, 0.45);
+        }
+
         body {
             margin: 0;
-            padding: 0;
-            background-color: #000;
+            padding: 20px;
+            background: radial-gradient(circle at center, #1b1b2f 0%, #06060c 100%);
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
-            height: 100vh;
+            justify-content: flex-start;
+            min-height: 100vh;
             color: #fff;
-            font-family: 'Press Start 2P', cursive;
-            overflow: hidden;
+            font-family: 'Outfit', sans-serif;
+            overflow-x: hidden;
+            box-sizing: border-box;
         }
-        body::after {
+
+        /* Scanline CRT Screen Bezel */
+        .crt-screen-container {
+            position: relative;
+            border-radius: 18px;
+            overflow: hidden;
+            border: 10px solid #2d2d3f;
+            box-shadow: 
+                inset 0 0 80px rgba(0, 0, 0, 0.9),
+                0 0 25px rgba(0, 255, 255, 0.25),
+                0 15px 35px rgba(0,0,0,0.6);
+            background-color: #050508;
+            margin-bottom: 20px;
+            line-height: 0;
+        }
+
+        .crt-screen-container::after {
             content: "";
             position: absolute;
-            top: 0; left: 0; width: 100vw; height: 100vh;
+            top: 0; left: 0; width: 100%; height: 100%;
             background: linear-gradient(
                 to bottom,
                 rgba(255, 255, 255, 0),
                 rgba(255, 255, 255, 0) 50%,
-                rgba(0, 0, 0, 0.15) 50%,
-                rgba(0, 0, 0, 0.15)
+                rgba(0, 0, 0, 0.22) 50%,
+                rgba(0, 0, 0, 0.22)
             );
             background-size: 100% 4px;
             pointer-events: none;
             z-index: 10;
+            animation: crt-flicker 0.2s infinite;
         }
+
+        @keyframes crt-flicker {
+            0% { opacity: 0.97; }
+            50% { opacity: 1.0; }
+            100% { opacity: 0.98; }
+        }
+
         #gameCanvas {
+            display: block;
             background-color: #000;
             image-rendering: pixelated;
+            max-width: 100%;
+            height: auto;
         }
-        #signature {
-            margin-top: 10px;
+
+        /* Arcade Cabinet Shell */
+        .arcade-cabinet {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: linear-gradient(135deg, #1d1d2b 0%, #0d0d17 100%);
+            border: 8px solid var(--cabinet-border);
+            border-radius: 32px;
+            padding: 24px;
+            box-shadow: 
+                0 30px 70px rgba(0, 0, 0, 0.8),
+                0 0 45px rgba(255, 0, 255, 0.1),
+                inset 0 0 30px rgba(255, 255, 255, 0.03);
+            position: relative;
+            width: 100%;
+            max-width: 860px;
+            box-sizing: border-box;
+        }
+
+        /* Illuminated Marquee Sign */
+        .arcade-marquee {
+            width: 100%;
+            background: #09090f;
+            border: 3px solid var(--neon-pink);
+            border-radius: 12px;
+            padding: 14px 0;
+            margin-bottom: 24px;
+            text-align: center;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 26px;
+            text-shadow: 
+                0 0 5px #fff,
+                0 0 10px var(--neon-pink),
+                0 0 20px var(--neon-pink);
+            letter-spacing: 3px;
+            box-shadow: 0 0 20px rgba(255, 0, 255, 0.5);
+            animation: marquee-pulse 2.5s infinite alternate;
+        }
+
+        .marquee-sub {
             font-size: 11px;
-            color: #444;
-            font-family: sans-serif;
+            display: block;
+            margin-top: 6px;
+            font-family: 'Press Start 2P', cursive;
+            letter-spacing: 1px;
+            text-shadow: none;
+            color: var(--neon-blue);
+        }
+
+        @keyframes marquee-pulse {
+            from {
+                border-color: var(--neon-pink);
+                box-shadow: 0 0 15px rgba(255, 0, 255, 0.4);
+            }
+            to {
+                border-color: var(--neon-blue);
+                box-shadow: 0 0 25px rgba(0, 255, 255, 0.6);
+            }
+        }
+
+        /* Control Panel Layout */
+        .arcade-dashboard {
+            width: 100%;
+            background: linear-gradient(to bottom, #151522, #0e0e18);
+            border-radius: 16px;
+            padding: 20px;
+            box-sizing: border-box;
+            border: 2px solid #252535;
+            box-shadow: inset 0 0 15px rgba(0,0,0,0.6);
+        }
+
+        .control-panel {
+            display: grid;
+            grid-template-columns: 1.2fr 1.5fr 1.3fr;
+            gap: 20px;
+            align-items: center;
+        }
+
+        @media (max-width: 768px) {
+            .control-panel {
+                grid-template-columns: 1fr;
+                gap: 25px;
+            }
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 12px;
+            padding: 12px;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .control-label {
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            color: #8888aa;
+            margin-bottom: 12px;
+            font-family: 'Press Start 2P', cursive;
+        }
+
+        /* Joystick Widget */
+        .joystick-container {
+            width: 76px;
+            height: 76px;
+            background: radial-gradient(circle, #252535 0%, #0d0d12 100%);
+            border-radius: 50%;
+            border: 4px solid #3c3c4f;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            box-shadow: inset 0 5px 10px rgba(0,0,0,0.8);
+            margin-bottom: 8px;
+        }
+
+        .joystick {
+            width: 10px;
+            height: 44px;
+            background: linear-gradient(to top, #2d2d3d, #7b7b8f);
+            position: absolute;
+            bottom: 38px;
+            transform-origin: bottom center;
+            transition: transform 0.12s ease-out;
+            border-radius: 5px;
+        }
+
+        .joystick::after {
+            content: "";
+            width: 28px;
+            height: 28px;
+            background: radial-gradient(circle, #ff2255 0%, #990022 100%);
+            border-radius: 50%;
+            position: absolute;
+            top: -20px;
+            left: -9px;
+            box-shadow: 
+                0 4px 8px rgba(0,0,0,0.4),
+                0 0 10px rgba(255,34,85,0.4),
+                inset 0 3px 5px rgba(255,255,255,0.4);
+        }
+
+        .joystick.left {
+            transform: rotate(-24deg);
+        }
+
+        .joystick.right {
+            transform: rotate(24deg);
+        }
+
+        .key-buttons, .system-buttons {
+            display: flex;
+            gap: 10px;
+            width: 100%;
+            justify-content: center;
+        }
+
+        /* Beautiful Tactile Buttons */
+        .arcade-btn {
+            background: linear-gradient(to bottom, #444, #222);
+            border: none;
+            color: #fff;
+            padding: 10px 14px;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 9px;
+            border-radius: 8px;
+            cursor: pointer;
+            outline: none;
+            transition: all 0.1s ease;
+            box-shadow: 0 4px 0 #151515, 0 5px 10px rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            user-select: none;
+        }
+
+        .arcade-btn:active, .arcade-btn.active {
+            transform: translateY(3px);
+            box-shadow: 0 1px 0 #111, 0 2px 5px rgba(0,0,0,0.5);
+        }
+
+        .green-btn {
+            background: linear-gradient(to bottom, #39ff14, #12aa08);
+            box-shadow: 0 4px 0 #086603, 0 5px 10px rgba(57,255,20,0.2);
+            text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+        }
+        .green-btn:active, .green-btn.active {
+            background: #25d40a;
+            box-shadow: 0 1px 0 #086603, 0 2px 5px rgba(57,255,20,0.2);
+        }
+
+        .red-btn {
+            background: linear-gradient(to bottom, #ff0055, #b30022);
+            box-shadow: 0 4px 0 #6d0011, 0 5px 12px rgba(255,0,85,0.3);
+            text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+        }
+        .red-btn:active, .red-btn.active {
+            background: #e6004c;
+            box-shadow: 0 1px 0 #6d0011, 0 2px 5px rgba(255,0,85,0.3);
+        }
+
+        .yellow-btn {
+            background: linear-gradient(to bottom, #ffbb00, #b88500);
+            box-shadow: 0 4px 0 #705100, 0 5px 10px rgba(255,187,0,0.2);
+            text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+        }
+        .yellow-btn:active, .yellow-btn.active {
+            background: #e0a500;
+            box-shadow: 0 1px 0 #705100, 0 2px 5px rgba(255,187,0,0.2);
+        }
+
+        .blue-btn {
+            background: linear-gradient(to bottom, #00d2ff, #007ca8);
+            box-shadow: 0 4px 0 #004d69, 0 5px 10px rgba(0,210,255,0.2);
+            text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+        }
+        .blue-btn:active, .blue-btn.active {
+            background: #00befa;
+            box-shadow: 0 1px 0 #004d69, 0 2px 5px rgba(0,210,255,0.2);
+        }
+        .blue-btn.muted {
+            background: linear-gradient(to bottom, #ff3333, #aa0000);
+            box-shadow: 0 4px 0 #660000, 0 5px 10px rgba(255,51,51,0.2);
+        }
+
+        .large-btn {
+            padding: 16px 20px;
+            width: 90%;
+            font-size: 11px;
+            letter-spacing: 1px;
+        }
+
+        /* Power-Up Encyclopedia Grid */
+        .power-encyclopedia {
+            width: 100%;
+            max-width: 860px;
+            background: linear-gradient(to bottom, #11111a, #0b0b10);
+            border: 2px solid #20202e;
+            border-radius: 20px;
+            padding: 20px;
+            margin-top: 24px;
+            box-sizing: border-box;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        .encyclopedia-title {
+            text-align: center;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 14px;
+            color: #88aaee;
+            margin-top: 0;
+            margin-bottom: 20px;
+            letter-spacing: 2px;
+        }
+
+        .power-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 12px;
+        }
+
+        .power-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            padding: 10px 14px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: all 0.2s ease;
+        }
+
+        .power-card:hover {
+            border-color: var(--card-color);
+            background: rgba(255, 255, 255, 0.04);
+            transform: translateY(-2px);
+        }
+
+        .power-badge {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 15px;
+            box-shadow: 0 0 8px rgba(0,0,0,0.4);
+            flex-shrink: 0;
+        }
+
+        .power-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .power-name {
+            font-size: 12px;
+            font-weight: 600;
+            color: #ddd;
+            margin-bottom: 2px;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 8px;
+            letter-spacing: 0.5px;
+        }
+
+        .power-desc {
+            font-size: 11px;
+            color: #7c7c8c;
+        }
+
+        #signature {
+            margin-top: 24px;
+            font-size: 11px;
+            color: #555566;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 8px;
             z-index: 20;
             position: relative;
+            text-align: center;
+            letter-spacing: 0.5px;
         }
     </style>
 </head>
 <body>
-    <canvas id="gameCanvas" width="800" height="600"></canvas>
-    <div id="signature">Created by Stonedhawk (Rahul) | 'M' to mute</div>
-    <script>
+    <div class="arcade-cabinet">
+        <div class="arcade-marquee">
+            <span style="color:var(--neon-green)">S</span><span style="color:var(--neon-pink)">P</span><span style="color:var(--neon-blue)">A</span><span style="color:var(--neon-yellow)">C</span><span style="color:var(--neon-red)">E</span>
+            <span style="color:#fff; margin:0 5px;">-</span>
+            <span style="color:var(--neon-yellow)">I</span><span style="color:var(--neon-blue)">N</span><span style="color:var(--neon-red)">V</span><span style="color:var(--neon-green)">A</span><span style="color:var(--neon-pink)">D</span><span style="color:var(--neon-yellow)">E</span><span style="color:var(--neon-blue)">R</span><span style="color:var(--neon-red)">S</span>
+            <span class="marquee-sub">PREMIUM SYSTEM V2</span>
+        </div>
+
+        <div class="crt-screen-container">
+            <canvas id="gameCanvas" width="800" height="600"></canvas>
+        </div>
+
+        <div class="arcade-dashboard">
+            <div class="control-panel">
+                <div class="control-group">
+                    <span class="control-label">NAVIGATE</span>
+                    <div class="joystick-container">
+                        <div id="joy-stick" class="joystick"></div>
+                    </div>
+                    <div class="key-buttons">
+                        <button id="key-btn-left" class="arcade-btn green-btn">◀ A</button>
+                        <button id="key-btn-right" class="arcade-btn green-btn">D ▶</button>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <span class="control-label">AUTOFIRING</span>
+                    <button id="key-btn-space" class="arcade-btn red-btn large-btn">WEAPON TRIGGER (SPACE)</button>
+                </div>
+
+                <div class="control-group">
+                    <span class="control-label">CONSOLE</span>
+                    <div class="system-buttons">
+                        <button id="key-btn-pause" class="arcade-btn yellow-btn">PAUSE (P)</button>
+                        <button id="key-btn-mute" class="arcade-btn blue-btn">MUTE (M)</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="power-encyclopedia">
+        <h3 class="encyclopedia-title">TACTICAL POWER-UP DIRECTORY</h3>
+        <div class="power-grid">
+            <div class="power-card" style="--card-color: var(--neon-yellow)">
+                <div class="power-badge" style="background-color: var(--neon-yellow)">🟡</div>
+                <div class="power-info">
+                    <span class="power-name">Faster Shooting</span>
+                    <span class="power-desc">Reduces reload delay significantly. (Common)</span>
+                </div>
+            </div>
+            <div class="power-card" style="--card-color: var(--neon-blue)">
+                <div class="power-badge" style="background-color: var(--neon-blue)">🔵</div>
+                <div class="power-info">
+                    <span class="power-name">Bigger Bullets</span>
+                    <span class="power-desc">Expands bullet size and destructive radius. (Common)</span>
+                </div>
+            </div>
+            <div class="power-card" style="--card-color: var(--neon-pink)">
+                <div class="power-badge" style="background-color: var(--neon-pink)">🟣</div>
+                <div class="power-info">
+                    <span class="power-name">Two Bullets Wide</span>
+                    <span class="power-desc">Fires two linear bullet streams simultaneously. (Uncommon)</span>
+                </div>
+            </div>
+            <div class="power-card" style="--card-color: var(--neon-orange)">
+                <div class="power-badge" style="background-color: var(--neon-orange)">🟠</div>
+                <div class="power-info">
+                    <span class="power-name">Three Spread</span>
+                    <span class="power-desc">Fires diagonal three-bullet sweeping bursts. (Rare)</span>
+                </div>
+            </div>
+            <div class="power-card" style="--card-color: #ffffff">
+                <div class="power-badge" style="background-color: #ffffff">⚪</div>
+                <div class="power-info">
+                    <span class="power-name">Laser Beam</span>
+                    <span class="power-desc">Fires an ultra-rare piercing plasma laser sweep.</span>
+                </div>
+            </div>
+            <div class="power-card" style="--card-color: var(--neon-red)">
+                <div class="power-badge" style="background-color: var(--neon-red)">🔴</div>
+                <div class="power-info">
+                    <span class="power-name">Extra Life</span>
+                    <span class="power-desc">Heals player ship hull (Max 5 Lives limit).</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="signature">Developed by Stonedhawk (Rahul) | 'M' key to toggle sound</div>
+
+    <script type="module">
+        import { GameState } from './src/logic.js';
+
         // Web Audio SFX Engine
         const AudioContextBase = window.AudioContext || window.webkitAudioContext;
         let audioCtx;
@@ -128,35 +579,7 @@
             bossHit: () => sfx.playTone(80, 'square', 0.1, 0.1)
         };
 
-        class GameEngineState {
-            constructor() {
-                this.alienKills = 0;
-                this.pendingDrops = 0;
-                this.activePowers = [];
-                this.wave = 1;
-                this.isBossWave = false;
-            }
-            recordAlienKill() {
-                this.alienKills++;
-                if (this.alienKills % 8 === 0) {
-                    this.pendingDrops++;
-                }
-            }
-            addPowerUp(power) {
-                this.activePowers.push(power);
-                if (this.activePowers.length > 3) {
-                    this.activePowers.shift(); 
-                }
-            }
-            advanceWave() {
-                this.wave++;
-                if (this.wave >= 10) {
-                    this.isBossWave = true;
-                }
-            }
-        }
-
-        const engine = new GameEngineState();
+        const engine = new GameState();
 
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
@@ -168,12 +591,30 @@
 
         const keys = { left: false, right: false, space: false, pPressed: false, mPressed: false };
 
+        // Cache DOM buttons for animations
+        const btnLeft = document.getElementById('key-btn-left');
+        const btnRight = document.getElementById('key-btn-right');
+        const btnSpace = document.getElementById('key-btn-space');
+        const btnPause = document.getElementById('key-btn-pause');
+        const btnMute = document.getElementById('key-btn-mute');
+        const joystick = document.getElementById('joy-stick');
+
+        // Keyboard Event Handlers
         window.addEventListener('keydown', (e) => {
             initAudio(); // Initialize audio on first user interaction
-            if (e.code === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = true;
-            if (e.code === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = true;
+            if (e.code === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+                keys.left = true;
+                btnLeft?.classList.add('active');
+                joystick?.classList.add('left');
+            }
+            if (e.code === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+                keys.right = true;
+                btnRight?.classList.add('active');
+                joystick?.classList.add('right');
+            }
             if (e.code === 'Space') {
                 keys.space = true;
+                btnSpace?.classList.add('active');
                 handleStateTransitions();
             }
             if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') {
@@ -181,22 +622,106 @@
                     if (gameState === 'PLAYING') gameState = 'PAUSED';
                     else if (gameState === 'PAUSED') gameState = 'PLAYING';
                     keys.pPressed = true;
+                    btnPause?.classList.add('active');
                 }
             }
             if (e.key === 'm' || e.key === 'M') {
                 if (!keys.mPressed) {
                     sfxEnabled = !sfxEnabled;
                     keys.mPressed = true;
+                    btnMute?.classList.toggle('muted', !sfxEnabled);
+                    btnMute?.classList.add('active');
+                    if (btnMute) {
+                        btnMute.textContent = sfxEnabled ? 'PAUSE (P)' : 'UNMUTE (M)';
+                        btnMute.textContent = sfxEnabled ? 'MUTE (M)' : 'UNMUTE (M)';
+                    }
                 }
             }
         });
 
         window.addEventListener('keyup', (e) => {
-            if (e.code === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = false;
-            if (e.code === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = false;
-            if (e.code === 'Space') keys.space = false;
-            if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') keys.pPressed = false;
-            if (e.key === 'm' || e.key === 'M') keys.mPressed = false;
+            if (e.code === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+                keys.left = false;
+                btnLeft?.classList.remove('active');
+                joystick?.classList.remove('left');
+            }
+            if (e.code === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+                keys.right = false;
+                btnRight?.classList.remove('active');
+                joystick?.classList.remove('right');
+            }
+            if (e.code === 'Space') {
+                keys.space = false;
+                btnSpace?.classList.remove('active');
+            }
+            if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') {
+                keys.pPressed = false;
+                btnPause?.classList.remove('active');
+            }
+            if (e.key === 'm' || e.key === 'M') {
+                keys.mPressed = false;
+                btnMute?.classList.remove('active');
+            }
+        });
+
+        // Safe Input Reset on Focus Loss
+        window.addEventListener('blur', () => {
+            keys.left = false;
+            keys.right = false;
+            keys.space = false;
+            btnLeft?.classList.remove('active');
+            btnRight?.classList.remove('active');
+            btnSpace?.classList.remove('active');
+            joystick?.classList.remove('left');
+            joystick?.classList.remove('right');
+        });
+
+        // Click / Touch Controller Bindings for Interactive Dashboard
+        if (btnLeft) {
+            btnLeft.addEventListener('mousedown', () => { keys.left = true; btnLeft.classList.add('active'); joystick?.classList.add('left'); });
+            btnLeft.addEventListener('mouseup', () => { keys.left = false; btnLeft.classList.remove('active'); joystick?.classList.remove('left'); });
+            btnLeft.addEventListener('mouseleave', () => { keys.left = false; btnLeft.classList.remove('active'); joystick?.classList.remove('left'); });
+            btnLeft.addEventListener('touchstart', (e) => { e.preventDefault(); initAudio(); keys.left = true; btnLeft.classList.add('active'); joystick?.classList.add('left'); });
+            btnLeft.addEventListener('touchend', () => { keys.left = false; btnLeft.classList.remove('active'); joystick?.classList.remove('left'); });
+        }
+
+        if (btnRight) {
+            btnRight.addEventListener('mousedown', () => { keys.right = true; btnRight.classList.add('active'); joystick?.classList.add('right'); });
+            btnRight.addEventListener('mouseup', () => { keys.right = false; btnRight.classList.remove('active'); joystick?.classList.remove('right'); });
+            btnRight.addEventListener('mouseleave', () => { keys.right = false; btnRight.classList.remove('active'); joystick?.classList.remove('right'); });
+            btnRight.addEventListener('touchstart', (e) => { e.preventDefault(); initAudio(); keys.right = true; btnRight.classList.add('active'); joystick?.classList.add('right'); });
+            btnRight.addEventListener('touchend', () => { keys.right = false; btnRight.classList.remove('active'); joystick?.classList.remove('right'); });
+        }
+
+        if (btnSpace) {
+            btnSpace.addEventListener('mousedown', () => { initAudio(); keys.space = true; btnSpace.classList.add('active'); handleStateTransitions(); });
+            btnSpace.addEventListener('mouseup', () => { keys.space = false; btnSpace.classList.remove('active'); });
+            btnSpace.addEventListener('mouseleave', () => { keys.space = false; btnSpace.classList.remove('active'); });
+            btnSpace.addEventListener('touchstart', (e) => { e.preventDefault(); initAudio(); keys.space = true; btnSpace.classList.add('active'); handleStateTransitions(); });
+            btnSpace.addEventListener('touchend', () => { keys.space = false; btnSpace.classList.remove('active'); });
+        }
+
+        if (btnPause) {
+            btnPause.addEventListener('click', () => {
+                initAudio();
+                if (gameState === 'PLAYING') gameState = 'PAUSED';
+                else if (gameState === 'PAUSED') gameState = 'PLAYING';
+            });
+        }
+
+        if (btnMute) {
+            btnMute.addEventListener('click', () => {
+                initAudio();
+                sfxEnabled = !sfxEnabled;
+                btnMute.classList.toggle('muted', !sfxEnabled);
+                btnMute.textContent = sfxEnabled ? 'MUTE (M)' : 'UNMUTE (M)';
+            });
+        }
+
+        // Initialize Audio on Canvas Click
+        canvas.addEventListener('click', () => {
+            initAudio();
+            handleStateTransitions();
         });
 
         function handleStateTransitions() {
@@ -213,6 +738,7 @@
 
         const stars = [];
         for (let i = 0; i < 100; i++) {
+
             stars.push({ x: Math.random() * WIDTH, y: Math.random() * HEIGHT, speed: Math.random() * 0.5 + 0.1, size: Math.random() * 2 + 1 });
         }
 
@@ -909,7 +1435,7 @@
                 ctx.fillText('WAVE 10 = BOSS', WIDTH / 2, HEIGHT / 2 + 170);
 
                 if (Math.floor(performance.now() / 500) % 2 === 0) {
-                    ctx.fillStyle = '#base';
+                    ctx.fillStyle = '#ffffff';
                     ctx.fillText('PRESS SPACE TO START', WIDTH / 2, HEIGHT - 50);
                 }
                 return;
